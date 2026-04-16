@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8"><title>DELTA ADMIN - QUYỀN LỰC</title>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+    <style>
+        body { background:#0a0a0a; color:#eee; font-family:sans-serif; padding:10px; }
+        .box { background:#111; border:1px solid #333; padding:15px; border-radius:10px; margin-bottom:15px; }
+        table { width:100%; border-collapse:collapse; font-size:12px; }
+        th, td { border:1px solid #222; padding:8px; text-align:left; }
+        button { cursor:pointer; padding:5px 10px; border:none; border-radius:4px; font-weight:bold; }
+        .btn-ok { background:#00ff88; color:#000; }
+        .btn-del { background:#ff4444; color:#fff; }
+        .btn-edit { background:#00f2ff; color:#000; }
+        input { background:#000; color:#fff; border:1px solid #333; padding:5px; border-radius:4px; }
+    </style>
+</head>
+<body>
+    <h2>SẾP TỔNG - DASHBOARD</h2>
+
+    <div class="box">
+        <h3>💰 DUYỆT NẠP TIỀN</h3>
+        <table>
+            <thead><tr><th>Khách</th><th>Tiền</th><th>Shop</th><th>Hành động</th></tr></thead>
+            <tbody id="list-nap"></tbody>
+        </table>
+    </div>
+
+    <div class="box">
+        <h3>👥 QUẢN LÝ NGƯỜI DÙNG</h3>
+        <input type="text" id="find-u" placeholder="Tìm tên khách...">
+        <table style="margin-top:10px;">
+            <thead><tr><th>Tên</th><th>Ví</th><th>Trạng thái</th><th>Quyền</th></tr></thead>
+            <tbody id="list-users"></tbody>
+        </table>
+    </div>
+
+    <div class="box">
+        <h3>🔑 THÊM KEY VÀO KHO</h3>
+        <select id="k-shop"><option value="shop1">Shop 1</option><option value="shop2">Shop 2</option></select>
+        <select id="k-type"><option value="ngay">Ngày</option><option value="tuan">Tuần</option><option value="thang">Tháng</option></select>
+        <input type="text" id="k-val" placeholder="Dán Key vào đây...">
+        <button class="btn-edit" onclick="addKey()">THÊM KEY</button>
+    </div>
+
+<script>
+    const config = { apiKey: "AIzaSyBk6R1TDZeAxh37JQLgL_6Wl0v8m8Sg0", databaseURL: "https://shopctv-61f96-default-rtdb.asia-southeast1.firebasedatabase.app/" };
+    firebase.initializeApp(config); const db = firebase.database();
+
+    // 1. Logic Duyệt nạp - Nhảy trạng thái
+    db.ref('bank_requests').on('value', s => {
+        const b = document.getElementById('list-nap'); b.innerHTML = "";
+        s.forEach(c => {
+            const d = c.val();
+            if(d.status === 'Pending') {
+                b.innerHTML += `<tr><td>${d.user}</td><td>${d.amount}</td><td>${d.shop}</td>
+                <td>
+                    <button class="btn-ok" onclick="duyet('${d.id}','${d.user}','${d.amount}','${d.shop}','Success')">Duyệt</button>
+                    <button class="btn-del" onclick="duyet('${d.id}','${d.user}','0','${d.shop}','Fail')">Hủy</button>
+                </td></tr>`;
+            }
+        });
+    });
+
+    function duyet(rid, u, amt, shop, st) {
+        if(st === 'Success') {
+            db.ref(`${shop}/${u}/balance`).transaction(b => (b || 0) + Number(amt));
+        }
+        db.ref(`bank_requests/${rid}`).update({status: st});
+        db.ref(`history_pay/${u}/${rid}`).update({status: st});
+        if(st === 'Fail') alert("Đã hủy đơn của " + u);
+    }
+
+    // 2. Quản lý User chuyên sâu
+    db.ref('users_shop1').on('value', s => renderUsers(s, 'users_shop1'));
+    function renderUsers(s, path) {
+        const b = document.getElementById('list-users');
+        s.forEach(c => {
+            const u = c.key, d = c.val();
+            b.innerHTML += `<tr><td>${u}</td>
+            <td><input type="number" value="${d.balance}" onchange="updateVal('${path}/${u}','balance',this.value)"></td>
+            <td>${d.status}</td>
+            <td>
+                <button class="btn-del" onclick="updateVal('${path}/${u}','status','Banned')">Ban</button>
+                <button class="btn-ok" onclick="updateVal('${path}/${u}','status','Active')">Mở</button>
+            </td></tr>`;
+        });
+    }
+
+    function updateVal(p, k, v) { db.ref(p).update({[k]: v}); }
+    function addKey() {
+        const s = document.getElementById('k-shop').value, t = document.getElementById('k-type').value, v = document.getElementById('k-val').value;
+        db.ref(`keys/${s}/${t}`).push(v).then(() => alert("Đã thêm!"));
+    }
+</script>
+</body>
+</html>
